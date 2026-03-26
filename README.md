@@ -13,6 +13,18 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
   - `BOOT` button (possible Rockchip loader/maskrom/boot mode entry)
   - TF card slot (possible storage expansion / upgrade path)
 
+
+## Confirmed from official PDF
+
+- Official board model confirmed: `DC-A588D5-V01`
+- Official manual confirms the 4-pin DEBUG header is the default system debug UART: `ttys2`
+- Official manual confirms the board has **2 independent gigabit Ethernet ports** (`网口0` / `网口1`)
+- Official manual confirms the dual stacked Type-A USB includes:
+  - upper port = `USB 2.0 OTG`
+  - lower port = `USB 3.0 Host`
+- Official manual confirms upgrade paths via **PC / U-disk / TF card**
+- Official manual confirms the `BOOT` key is relevant to Loader / Maskrom style recovery / flashing entry
+
 ## Goals
 
 1. Identify exact board / boot chain / storage layout
