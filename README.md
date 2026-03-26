@@ -4,7 +4,8 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
 
 ## Current Summary
 
-- Device family: likely industrial/custom RK3588/RK3588S board
+- Exact board model confirmed by user: `DC-A588-V04`
+- Device family: industrial/custom RK3588 board
 - Current OS observed: ZilOS (reported as based on OpenHarmony 4.1.3)
 - Known working path: device gets DHCP lease from router
 - Known DHCP leases observed on different Ethernet connections: `192.168.31.176`, `192.168.31.196`
@@ -16,7 +17,7 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
 
 ## Confirmed from official PDF
 
-- Official board model confirmed: `DC-A588D5-V01`
+- Official board model confirmed: `DC-A588-V04`
 - Official manual confirms the 4-pin DEBUG header is the default system debug UART: `ttys2`
 - Official manual confirms the board has **2 independent gigabit Ethernet ports** (`网口0` / `网口1`)
 - Official manual confirms the dual stacked Type-A USB includes:
