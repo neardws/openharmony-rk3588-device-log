@@ -7,7 +7,7 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
 - Device family: likely industrial/custom RK3588/RK3588S board
 - Current OS observed: ZilOS (reported as based on OpenHarmony 4.1.3)
 - Known working path: device gets DHCP lease from router
-- Known device IP (observed once): `192.168.31.176`
+- Known DHCP leases observed on different Ethernet connections: `192.168.31.176`, `192.168.31.196`
 - Likely debug entry points:
   - 4-pin `DEBUG` header (TTL serial console)
   - `BOOT` button (possible Rockchip loader/maskrom/boot mode entry)

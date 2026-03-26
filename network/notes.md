@@ -19,3 +19,13 @@ Closed/refused:
 
 Open:
 - 53 (DNS)
+
+
+## Additional observation
+
+- Plugging into the other Ethernet port produced a different DHCP lease: `192.168.31.196`
+- This suggests both physical ETH ports may be active/enumerated, or port-to-interface mapping differs by jack
+- Need to later confirm:
+  - whether both ports are independently usable
+  - interface naming / MAC mapping
+  - whether one port is WAN/LAN differentiated in software
