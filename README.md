@@ -94,10 +94,39 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
 3. TF slot may support upgrade or alternate boot in some scenarios
 4. A true OTG/device-mode port may be absent, hidden, internal, or not yet identified
 
+## Serial Console — Confirmed Working (2026-03-27)
+
+- **波特率**: 1500000 (8N1)
+- **COM 口**: CP2102 → Windows COM3
+- **接线**: CP2102 RXD → 板子 TX，CP2102 TXD → 板子 RX，GND → GND
+- **Shell**: root (`#`)，OpenHarmony 4.x，aarch64
+- **内核**: Linux 5.10.110 aarch64
+- **板子 IP**: 192.168.31.56（DHCP）
+- **注意**: TX/RX 容易接反，需对调确认
+
+## HDC TCP — 已启用
+
+```sh
+param set persist.hdc.mode tcp
+param set persist.hdc.port 5555
+param set persist.hdc.authlevel 0
+killall hdcd   # init 自动重启并读取 TCP 参数
+```
+
+连接：`hdc.exe tconn 192.168.31.56:5555`
+
+## 可用网络服务
+
+| 端口 | 服务 |
+|------|------|
+| 27681 | ttyd Web Terminal（浏览器访问）|
+| 1883 | MQTT (mosquitto) |
+| 5555 | HDC TCP（手动启用）|
+
 ## Next Actions
 
-- [ ] Buy USB-TTL adapter (prefer CP2102)
-- [ ] Connect to DEBUG header (GND/TX/RX only; do not connect VCC)
-- [ ] Test serial baud rates: 1500000, 115200, 921600
-- [ ] Capture boot log
-- [ ] Identify U-Boot / kernel / storage / recovery clues
+- [ ] 完成 dropbear 串口传输（目标: `/data/local/dropbear`）
+- [ ] 启动 SSH 服务（dropbear）
+- [ ] 排查 HDC TCP 认证问题（重启后 key 失效）
+- [ ] 找到避免触发 FIQ Debugger 的方法
+- [ ] 记录 U-Boot 启动日志
