@@ -128,17 +128,37 @@ fec90000.i2c
   ← 无 vdd_npu_s0
 ```
 
-## 待查问题
-1. `i2c@fea90000` (i2c-1) 为什么 probe 失败？
-   - suppliers 全部 available（pinctrl + vcc5v0-sys）
-   - clk 存在（clk_i2c1 @ 198MHz, pclk_i2c1 @ 100MHz）
-   - compatible 正确（rockchip,rk3588-i2c / rockchip,rk3399-i2c）
-   - rk3x-i2c 驱动已加载（其他 i2c 控制器正常）
-   - 手动 bind 返回 exit:1
+## 根因（已确认）
 
-2. 是否缺少 pinmux 配置？（pinctrl-0 phandle = 0x0131）
+### 引脚冲突 → i2c1 probe 失败
 
-3. 这是固件 BUG 还是 DTS 裁剪？
+`i2c@fea90000` 的 pinctrl 配置为 `i2c1m2-xfer`（phandle 0x131），对应引脚：
+- `gpio0-28` (GPIO0_D4) → i2c1m2_SCL
+- `gpio0-29` (GPIO0_D5) → i2c1m2_SDA
+
+但实际状态（`/sys/kernel/debug/pinctrl/pinctrl-rockchip-pinctrl/pinmux-pins`）：
+```
+pin 28 (gpio0-28): fd8b0030.pwm (GPIO UNCLAIMED) function pwm3 group pwm3m0-pins
+pin 29 (gpio0-29): (MUX UNCLAIMED) (GPIO UNCLAIMED)
+```
+
+**gpio0-28 被 `fd8b0030.pwm`（PWM3）占用**，导致 i2c1 的 `pinctrl_select_default()` 返回 `-EBUSY`，rk3x-i2c probe 失败，整条依赖链断裂。
+
+### 修复方案（待验证）
+```sh
+# unbind PWM3，释放 gpio0-28
+echo fd8b0030.pwm > /sys/bus/platform/drivers/rockchip-pwm/unbind
+# 重新 bind i2c1
+echo fea90000.i2c > /sys/bus/platform/drivers/rk3x-i2c/bind
+# 触发 NPU probe
+echo fdab0000.npu > /sys/bus/platform/drivers/RKNPU/bind
+# 检查结果
+ls /dev/rknpu*
+```
+
+**风险：** PWM3 可能控制背光/风扇，unbind 前需确认用途。
+
+### 状态：暂缓，先探索其他方案
 
 ## 解决方案候选
 
