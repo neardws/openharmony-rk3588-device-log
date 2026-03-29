@@ -1,0 +1,34 @@
+{
+  "product_name": "rk3588",
+  "device_company": "hihope",
+  "device_build_path": "device/board/hihope/rk3588",
+  "target_cpu": "arm64",
+  "type": "standard",
+  "version": "3.0",
+  "board": "rk3588",
+  "enable_ramdisk": true,
+  "enable_absystem": false,
+  "build_selinux": true,
+  "kernel_version": "6.6",
+  "subsystems": [
+    {
+      "subsystem": "arkui",
+      "components": [
+        { "component": "ace_engine", "features": [] }
+      ]
+    },
+    {
+      "subsystem": "multimedia",
+      "components": [
+        { "component": "media_foundation", "features": [] },
+        { "component": "camera_framework", "features": [] }
+      ]
+    },
+    {
+      "subsystem": "ai",
+      "components": [
+        { "component": "neural_network_runtime", "features": [] }
+      ]
+    }
+  ]
+}

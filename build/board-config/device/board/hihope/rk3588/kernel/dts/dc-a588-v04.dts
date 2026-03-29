@@ -1,0 +1,88 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * DC-A588-V04 (RK3588) Device Tree
+ * Based on OpenHarmony rk3588-evb.dtsi
+ *
+ * Key customizations vs upstream EVB:
+ *   - PWM3 disabled to free gpio0-28 for i2c1
+ *   - i2c1 (fea90000) enabled with i2c1m2 pinmux
+ *   - vdd_npu_s0 regulator via rk8602@42 on i2c1
+ *   - NPU (rknpu) enabled with correct power supply
+ */
+
+/dts-v1/;
+
+#include "rk3588.dtsi"
+#include "rk3588-evb.dtsi"
+#include "rk3588-linux.dtsi"
+
+/ {
+	model = "DC-A588-V04 RK3588 Board";
+	compatible = "hihope,dc-a588-v04", "rockchip,rk3588";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xfeb50000 console=ttyFIQ0 androidboot.hardware=rk30board androidboot.console=ttyFIQ0 firmware_class.path=/vendor/etc/firmware loglevel=7 swiotlb=1 loop.max_part=7 androidboot.selinux=enforcing";
+	};
+};
+
+/*
+ * FIX: PWM3 occupies gpio0-28 which conflicts with i2c1m2 SCL.
+ * Disable PWM3 to release the pin.
+ * NOTE: Verify PWM3 is not used for fan/backlight on this board before applying.
+ */
+&pwm3 {
+	status = "disabled";
+};
+
+/*
+ * FIX: Enable i2c1 (fea90000) with i2c1m2 pinmux (GPIO0_D4/D5).
+ * This was failing to probe because gpio0-28 was claimed by PWM3.
+ * With PWM3 disabled, i2c1 should probe successfully.
+ */
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1m2_xfer>;
+
+	/*
+	 * RK8602 PMIC for vdd_npu_s0
+	 * This is the NPU voltage regulator that was missing,
+	 * causing RKNPU driver to fail with -EPROBE_DEFER.
+	 */
+	rk8602_npu: rk8602@42 {
+		compatible = "rockchip,rk8602";
+		reg = <0x42>;
+		vin-supply = <&vcc5v0_sys>;
+		regulator-compatible = "rk860x-reg";
+		regulator-name = "vdd_npu_s0";
+		regulator-min-microvolt = <550000>;
+		regulator-max-microvolt = <950000>;
+		regulator-ramp-delay = <2300>;
+		rockchip,suspend-voltage-selector = <1>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+};
+
+/* Enable NPU with correct power supply */
+&rknpu {
+	rknpu-supply = <&rk8602_npu>;
+	status = "okay";
+};
+
+&rknpu_mmu {
+	status = "okay";
+};
+
+/* Ethernet: DC-A588-V04 has two GbE ports */
+&gmac0 {
+	status = "okay";
+};
+
+&gmac1 {
+	status = "okay";
+};
