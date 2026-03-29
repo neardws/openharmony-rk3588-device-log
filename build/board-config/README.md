@@ -58,3 +58,31 @@ cp -r board-config/device/board/hihope/rk3588 \
 1. 对比 `vdd_npu_s0` 相关节点的实际配置
 2. 验证 PWM3 的实际用途（风扇/背光？）
 3. 补充其他板子特有外设配置（SATA, CAN, RS485 等）
+
+## Ubuntu 验证数据（2026-03-29）
+
+已从 Ubuntu 5.10.198 系统（NPU 工作）提取运行时 DTB，确认以下信息：
+
+### i2c@fea90000（i2c1）实际配置
+```
+pinctrl-0 = <i2c1m2-xfer>;  // GPIO0_D4(pin28)/D5(pin29), func9
+status = "okay";
+子设备: rk8602@42 (vdd_npu_s0, 550mV~950mV)
+```
+
+### PWM3 状态
+```
+pwm@fd8b0030: status = "okay"
+```
+**注意：Ubuntu DTB 中 PWM3 是 okay 的！**  
+这意味着 OHOS 厂商固件中 gpio0-28 被 PWM3 占用的原因是**引脚 mux 配置不同**，
+不是 PWM3 本身占用，而是 OHOS 固件的 pinctrl 配置把 gpio0-28 给了 PWM3 而非 i2c1m2。
+修复方向：确保 i2c1 pinctrl 指向 `i2c1m2_xfer`（不与 PWM3 冲突）。
+
+### NPU 状态
+- rknpu 0.9.3 初始化成功（但有 can't request region 警告，非致命）
+- supplier: `i2c:1-0042`（rk8602 成功 probe）
+
+### 参考文件
+- `hardware/ubuntu-running-5.10.198.dtb` — 完整 DTB（268KB）
+- `hardware/ubuntu-running-5.10.198.dts` — 反编译 DTS（322KB）
