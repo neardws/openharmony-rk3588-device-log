@@ -198,6 +198,137 @@ API 前缀：`http://192.168.1.13/LAPI/V1.0`
 
 ---
 
+## 昼夜模式切换
+
+### 查询当前昼夜状态
+
+```bash
+/data/local/tmp/curl -s --digest -u admin:'a1234567~' \
+  'http://192.168.1.13/LAPI/V1.0/Channels/0/Image/Advanced/Exposure' | grep -A4 DayNight
+```
+
+### 强制切换到夜间黑白模式（ICR 滤片移开，可感应红外）
+
+必须传完整 Exposure JSON，只改 DayNight.Mode：
+
+```bash
+/data/local/tmp/curl -s --digest -u admin:'a1234567~' \
+  -X PUT http://192.168.1.13/LAPI/V1.0/Channels/0/Image/Advanced/Exposure \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "SourceType":0,"Mode":0,"AERecoveryTime":900,"LinearAntiFlicker":5,
+    "CompensationLevel":0,"HLCSensitivity":0,
+    "IrisInfo":{"Iris":0,"MinIris":0,"MaxIris":0},
+    "ShutterInfo":{"Shutter":100,"MinShutter":100000,"MaxShutter":30,"IsEnableSlowShutter":0,"SlowestShutter":12},
+    "GainInfo":{"Gain":0,"MinGain":0,"MaxGain":100},
+    "WideDynamic":{"Mode":0,"Level":5,"OpenSensitivity":5,"CloseSensitivity":5,"SmartSensitivity":5,"AntiFlicker":0},
+    "Metering":{"Mode":0,"RefBrightness":50,"HoldTime":5,"Area":{"TopLeft":{"X":25,"Y":25},"BottomRight":{"X":75,"Y":75}}},
+    "DayNight":{"Mode":2,"Sensitivity":5,"Time":3}
+  }'
+```
+
+### 恢复自动昼夜模式
+
+```bash
+# 同上，将 DayNight.Mode 改为 0
+"DayNight":{"Mode":0,"Sensitivity":5,"Time":3}
+```
+
+### 强制切换到白天彩色模式
+
+```bash
+# DayNight.Mode=1
+"DayNight":{"Mode":1,"Sensitivity":5,"Time":3}
+```
+
+### DayNight Mode 枚举
+
+| Mode | 含义 |
+|------|------|
+| 0 | 自动（根据环境亮度切换）|
+| 1 | 强制白天彩色 |
+| 2 | **强制夜间黑白**（ICR 移开，可感应红外）|
+| 3 | 定时切换 |
+
+> ⚠️ 注意：`DayNight.Mode` 只能通过完整 Exposure JSON 一起 PUT，单独发 `{"DayNight":{"Mode":2}}` 会报 `Invalid Arguments`。
+
+---
+
+## 红外灯控制详解
+
+### 摄像头工作原理
+
+- **ICR 滤片**：白天插入滤片挡住红外 → 彩色画面；夜间移开 → 黑白画面，可感应红外
+- **红外 LED 灯环**：主动补光，人眼不可见（850nm/940nm），但摄像头 CMOS 和手机摄像头可拍到
+- **白光灯**：可见光补光，夜间保持彩色画面
+
+### 开启红外灯（自动模式，随昼夜触发）
+
+```bash
+/data/local/tmp/curl -s --digest -u admin:'a1234567~' \
+  -X PUT http://192.168.1.13/LAPI/V1.0/Channels/0/Image/LampCtrl \
+  -H 'Content-Type: application/json' \
+  -d '{"Enabled":1,"Type":2,"Mode":0,"NearLevel":100,"MiddleLevel":0,"FarLevel":0,"SuperFarLevel":0}'
+```
+
+配合 `DayNight.Mode=2` 使用，切到夜间模式后红外灯自动启动。
+
+### 开启白光灯（自动模式）
+
+```bash
+/data/local/tmp/curl -s --digest -u admin:'a1234567~' \
+  -X PUT http://192.168.1.13/LAPI/V1.0/Channels/0/Image/LampCtrl \
+  -H 'Content-Type: application/json' \
+  -d '{"Enabled":1,"Type":1,"Mode":0,"NearLevel":100,"MiddleLevel":0,"FarLevel":0,"SuperFarLevel":0}'
+```
+
+### 验证红外灯是否工作
+
+肉眼难以看到红外光（850nm），用**手机摄像头**对准摄像头正面拍照，可看到灯环发出紫白色光晕。
+
+### LampCtrl 参数说明
+
+| 参数 | 说明 |
+|------|------|
+| Enabled | 0=禁用 1=启用（**必须为1，否则不生效**）|
+| Type | 1=白光 2=红外 6=厂商私有扩展 |
+| Mode | 0=自动 1=防过曝自动 3=手动（受昼夜触发）|
+| NearLevel | 近距离亮度 0~100 |
+
+> ⚠️ 重要：即使 PUT 返回成功，若 `Enabled=0` 灯也不会亮。每次设置必须显式传 `"Enabled":1`。
+
+---
+
+## 完整日夜+补光灯联动流程
+
+强制夜间红外模式（切黑白 + 开红外灯）：
+
+```bash
+HDC="C:\Documents and Settings\neardws\Desktop\hdc\hdc.exe"
+CURL="/data/local/tmp/curl"
+CAM="http://192.168.1.13"
+AUTH="admin:a1234567~"
+
+# 1. 强制夜间黑白
+hdc.exe shell "$CURL --digest -u '$AUTH' -X PUT $CAM/LAPI/V1.0/Channels/0/Image/Advanced/Exposure \
+  -H 'Content-Type: application/json' \
+  -d '{...DayNight.Mode=2...}'"
+
+# 2. 开启红外灯
+hdc.exe shell "$CURL --digest -u '$AUTH' -X PUT $CAM/LAPI/V1.0/Channels/0/Image/LampCtrl \
+  -H 'Content-Type: application/json' \
+  -d '{\"Enabled\":1,\"Type\":2,\"Mode\":0,\"NearLevel\":100}'"
+```
+
+恢复白天彩色：
+
+```bash
+# DayNight.Mode=0（自动）或 Mode=1（强制白天）
+# LampCtrl Enabled=0 或 Mode=0 自动关闭
+```
+
+---
+
 ## 注意事项
 
 - eth1 IP 重启后会丢失，每次需重新配置：`ifconfig eth1 192.168.1.100 netmask 255.255.255.0 up`
