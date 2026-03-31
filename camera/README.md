@@ -90,6 +90,37 @@ hdc.exe shell "/data/local/tmp/ffmpeg -rtsp_transport tcp \
 
 输出文件：`/data/local/tmp/frame.rgb`，大小约 12MB（2688×1520×3 bytes）
 
+### 全帧连续解码存 JPEG（完整 25fps）
+
+```bash
+# 先清空旧帧
+hdc.exe shell "rm -f /data/local/tmp/frames/*.jpg"
+
+# 全帧解码，不加 -vf fps=N 限制，30秒出 750 帧
+hdc.exe shell "/data/local/tmp/ffmpeg -rtsp_transport tcp \
+  -i 'rtsp://admin:a1234567~@192.168.1.13:554/media/video1' \
+  -t 30 \
+  -q:v 3 \
+  /data/local/tmp/frames/frame_%04d.jpg"
+```
+
+预期结果：
+- 总帧数：**750 帧**（25fps × 30s）
+- 解码速度：~26fps，`speed=1.02x`（实时解码无掉帧）
+- 磁盘占用：约 300MB（板子 /data 分区需有足够空间）
+
+> ⚠️ 注意：`-vf fps=5` 会将输出限制为 5fps（每秒只存 5 帧），如需全帧必须去掉此参数。
+
+### 降帧率保存（节省空间）
+
+```bash
+# 每秒只存 5 帧，30秒出 150 帧，约 14MB
+hdc.exe shell "/data/local/tmp/ffmpeg -rtsp_transport tcp \
+  -i 'rtsp://admin:a1234567~@192.168.1.13:554/media/video1' \
+  -t 30 -vf fps=5 -q:v 3 \
+  /data/local/tmp/frames/frame_%04d.jpg"
+```
+
 ### 将 RGB raw 转为 PNG 预览（在 Ubuntu 上）
 
 ```bash
