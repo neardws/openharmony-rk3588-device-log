@@ -141,6 +141,14 @@ img.save('/tmp/frame.png')
 
 ---
 
+## 相关文档
+
+- `camera/api.md` — 摄像头 LightAPI / 码流控制说明
+- `camera/soft-decode-to-hw-decode-migration.md` — 从 RTSP 软解迁移到硬解的路线图
+- `camera/hw-decode-validation-checklist.md` — 上板验证 IPC 摄像头 RTSP 硬解的检查清单
+
+---
+
 ## 当前状态与后续计划
 
 | 项目 | 状态 |
