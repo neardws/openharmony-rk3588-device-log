@@ -41,6 +41,12 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
 - `flashing/` — boot modes, upgrade paths, recovery notes
 - `issues/` — tracked problems and hypotheses
 - `logs/` — raw logs and command outputs
+- `build/` — board config, build plans, build logs, reusable patch notes
+
+## Recent Build Docs
+
+- `build/docs/rk3568-full-build-fixset-2026-04-11.md` — reusable fix set for `rk3568@hihope` + `linux-5.10`
+- `build/docs/rk3568-full-build-patch-checklist-2026-04-11.md` — short patch checklist for reproducing the successful build
 
 ## Current Findings
 
