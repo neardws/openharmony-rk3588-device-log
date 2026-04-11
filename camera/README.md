@@ -146,6 +146,8 @@ img.save('/tmp/frame.png')
 - `camera/api.md` — 摄像头 LightAPI / 码流控制说明
 - `camera/soft-decode-to-hw-decode-migration.md` — 从 RTSP 软解迁移到硬解的路线图
 - `camera/hw-decode-validation-checklist.md` — 上板验证 IPC 摄像头 RTSP 硬解的检查清单
+- `camera/hcodec-demo-notes.md` — `hcodec_demo` 的定位、输入要求和最小命令模板
+- `camera/offline-test-sample-spec.md` — 没有板子/摄像头时可先准备的离线硬解测试样本规范
 
 ---
 
