@@ -133,8 +133,11 @@ HCODEC_RUN_ID=smoke2_320x240_all \
 
 ### 4.4 结论
 
-- `surface` 在最小样本上仍然失败，失败点非常明确：
+- 这轮最初的 `surface` 失败点非常明确：
   - `SetOutputSurface failed: 63570434`
+- 之后结合源码继续定位，确认：
+  - `63570434 = 0x3ca0202`
+  - 这是 `AVCS_ERR_INVALID_STATE`
 - `buffer` 路稳定成功
 - 在小分辨率样本上，`sync` 和 `async` 几乎没有差别：
   - `243.13 fps` vs `243.63 fps`
@@ -143,6 +146,7 @@ HCODEC_RUN_ID=smoke2_320x240_all \
 
 - 小样本下 output drain 不是主要瓶颈
 - `async drain` 逻辑本身至少没有把 buffer 路跑坏
+- 更关键的是，最初的 `surface` 失败并不一定代表“surface 能力不存在”，而是很可能包含了调用时序错误
 
 ## 5. 主验证：1080p60 / 10s
 
@@ -175,10 +179,10 @@ HCODEC_RUN_ID=lauter_1080p60_10s_a1 \
 
 ### 5.4 结论
 
-#### surface 路
+#### surface 路（修调用顺序前）
 
-- 仍然没有进入真正的 surface 输出阶段
-- 失败点依旧卡在：
+- 这轮原始运行里，surface 还没有进入真正的输出阶段
+- 失败点卡在：
 
 ```text
 SetOutputSurface failed: 63570434
@@ -187,10 +191,6 @@ SetOutputSurface failed: 63570434
 - 因为 surface 根本没绑成功，所以：
   - `surface_cb=0`
   - `surface_released=0`
-
-这说明当前证据链非常稳定：
-
-> 不是 surface consumer drain 没写，甚至还没走到真正出 surface buffer 的阶段，当前板子/媒体栈在 `SetOutputSurface` 这一步就拒掉了。
 
 #### buffer 路
 
@@ -205,6 +205,83 @@ SetOutputSurface failed: 63570434
 这基本说明：
 
 > 当前 `buffer` 路的主瓶颈并不只是 output drain，同步改成异步以后没有出现数量级改善。
+
+### 5.5 继续定位后的更新结论
+
+后续继续读服务端代码，发现 `CodecServer::SetOutputSurface()` 在 mode 还没确认时，要求当前状态必须是：
+
+- `CONFIGURED`
+
+而早期 `hcodec_minidec` 的调用顺序是：
+
+```text
+SetCallback -> SetOutputSurface -> Configure -> Prepare -> Start
+```
+
+这与服务端状态要求不符。
+
+把顺序改成：
+
+```text
+SetCallback -> Configure -> SetOutputSurface -> Prepare -> Start
+```
+
+之后，原来的 `63570434` 立刻消失，surface 路实际推进到了：
+
+- `configure`
+- `create output surface`
+- `set output surface`
+- `prepare`
+- `start`
+- first input callback
+- first output callback
+
+随后才以 `Signal 11` 崩溃。
+
+这说明：
+
+> `63570434` 的主要含义已经可以收敛为“调用时机不对导致的 invalid state”，而不是单纯的“板子完全不支持 surface 输出”。
+
+### 5.6 修调用顺序后的 surface smoke
+
+输入：
+
+- `/data/local/tmp/out_320_240_10s.h264`
+
+结果日志核心片段：
+
+```text
+[phase] configure
+[phase] create output surface
+[phase] set output surface
+[phase] prepare
+[phase] start
+[callback] first input idx=1 size=4177920
+[phase] start ok, waiting for first input callback
+[callback] first output idx=5 size=0 flag=0x0
+Signal 11
+```
+
+对应 fault log：
+
+- `/data/log/faultlog/faultlogger/cppcrash-hcodec_minidec_arm-0-20260416124430`
+- 已拉回本地：
+  - `/home/neardws/openharmony-build/logs/hcodec/cppcrash-hcodec_minidec_arm-0-20260416124430`
+
+fault log 关键栈：
+
+```text
+Reason:Signal:SIGSEGV(SEGV_ACCERR)
+Fault thread info:
+Tid:8558, Name:OS_IPC_0_8558
+#01 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueue::CallConsumerListener()+104)
+#02 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueue::FlushBuffer(...)+760)
+#03 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueueProducer::FlushBuffer(...)+68)
+```
+
+这说明当前 surface 路的新 blocker 已经变成：
+
+> 不再是早期 `invalid state`，而是 surface 真正跑起来后，在 `libsurface.z.so -> BufferQueue::CallConsumerListener()` 这一层发生了 consumer-listener 相关崩溃。
 
 ## 6. 更贴近 IPC 主码流的验证：2688x1520 / 60fps / 10s
 
@@ -251,15 +328,17 @@ HCODEC_RUN_ID=ipc_2688x1520_60fps_10s_b1 \
 
 1. **当前 32-bit `hcodec_minidec_arm` 可以在目标板上稳定运行**
 2. **buffer 模式可稳定解码并到 EOS**
-3. **surface 模式在 `SetOutputSurface` 阶段失败**
-4. **失败码稳定复现为 `63570434`**
-5. **1080p60 / 10s buffer 路吞吐大约只有 20 fps，明显未达 real-time 60 fps**
-6. **2688x1520 / 60fps / 10s buffer 路吞吐大约只有 10 fps，离 real-time 更远**
-7. **async drain 不是当前主要性能瓶颈**
+3. **`63570434` / `0x3ca0202` 可以映射到 `AVCS_ERR_INVALID_STATE`**
+4. **早期 `SetOutputSurface failed: 63570434` 与 `SetOutputSurface` 调用时机过早高度一致**
+5. **把 `SetOutputSurface` 挪到 `Configure` 之后后，surface 路可以推进到 `Prepare/Start/first callbacks`**
+6. **修正调用顺序后，新的 blocker 是 `libsurface.z.so` 中 `BufferQueue::CallConsumerListener()` 相关崩溃**
+7. **1080p60 / 10s buffer 路吞吐大约只有 20 fps，明显未达 real-time 60 fps**
+8. **2688x1520 / 60fps / 10s buffer 路吞吐大约只有 10 fps，离 real-time 更远**
+9. **async drain 不是当前主要性能瓶颈**
 
 ### 7.2 还没有被坐实的点
 
-1. `63570434` / `0x3ca0202` 的精确错误码映射仍未在源码里定位到
+1. surface consumer-listener 崩溃究竟是 `hcodec_minidec` 自己的 surface 消费逻辑问题，还是板端 `libsurface` / BSP 行为问题，还需要继续缩小
 2. 还不能证明 surface 路“只要继续改代码就一定能通”
 3. 还不能证明当前 RK3588 / OpenHarmony 组合能交付 real-time surface/zero-copy 解码链路
 
@@ -279,6 +358,11 @@ HCODEC_RUN_ID=ipc_2688x1520_60fps_10s_b1 \
 - `hidumper_3011_*`
 - `ps_*`
 
+此外，修正 `SetOutputSurface` 调用顺序后的 surface crash fault log 也已拉回本地：
+
+- `/home/neardws/openharmony-build/logs/hcodec/cppcrash-hcodec_minidec_arm-0-20260416124430`
+
 ## 9. 一句话总结
 
-> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3588 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps，`2688x1520 60fps` 样本更是只有约 10 fps；surface 路则稳定卡在 `SetOutputSurface failed: 63570434`，说明当前问题已经从“能不能跑起来”收敛成了“surface 输出为何被媒体栈拒绝，以及 buffer 路为什么离 real-time 仍差很多”。
+> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3588 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps，`2688x1520 60fps` 样本更是只有约 10 fps；surface 路早期的 `SetOutputSurface failed: 63570434` 已可解释为 `AVCS_ERR_INVALID_STATE` 和调用时序错误，而修正时序后，surface 又进一步推进到了真正运行阶段，并暴露出新的 `libsurface.z.so -> BufferQueue::CallConsumerListener()` 崩溃问题。
+
