@@ -206,24 +206,64 @@ SetOutputSurface failed: 63570434
 
 > 当前 `buffer` 路的主瓶颈并不只是 output drain，同步改成异步以后没有出现数量级改善。
 
-## 6. 当前最稳的判断
+## 6. 更贴近 IPC 主码流的验证：2688x1520 / 60fps / 10s
 
-### 6.1 已被实测坐实的点
+### 6.1 输入
+
+- `/data/local/tmp/test-h264-2688x1520-main-60fps-10s.h264`
+
+### 6.2 运行
+
+这轮先只看 buffer 吞吐，不重复跑已经稳定失败的 surface case：
+
+```bash
+HCODEC_MINIDEC_BIN=/data/local/tmp/hcodec_minidec_arm \
+HCODEC_RUN_ID=ipc_2688x1520_60fps_10s_b1 \
+/data/local/tmp/hcodec_minidec_suite.sh \
+  /data/local/tmp/test-h264-2688x1520-main-60fps-10s.h264 \
+  2688 1520 buffer
+```
+
+### 6.3 结果
+
+```text
+== buffer_sync ==
+[summary] queued=600 output=600 output_bytes=3677184000 max_chunk=84360 in_cb=603 out_cb=601 elapsed_ms=59040 out_fps=10.16 drain=sync surface_cb=0 surface_released=0 success=true
+
+== buffer_async ==
+[summary] queued=600 output=600 output_bytes=3677184000 max_chunk=84360 in_cb=603 out_cb=601 elapsed_ms=58000 out_fps=10.34 drain=async surface_cb=0 surface_released=0 success=true
+```
+
+### 6.4 结论
+
+- 在更贴近 IPC 主码流的 `2688x1520 60fps` 样本上，buffer 路吞吐进一步降到大约 `10 fps`
+- `async` 相比 `sync` 仍然只有非常小的提升：
+  - `10.16 fps` -> `10.34 fps`
+- 这比 `1080p60 / 10s` 的约 `20 fps` 更差，符合“分辨率越高，当前 test path 越跟不上”的趋势
+
+这意味着：
+
+> 当前 `buffer` 路不仅达不到 real-time 60 fps，而且在更接近 IPC 主码流分辨率时，吞吐会进一步掉到约 10 fps，说明瓶颈仍在 end-to-end test pipeline，而不是简单一个 drain 开关就能解决。
+
+## 7. 当前最稳的判断
+
+### 7.1 已被实测坐实的点
 
 1. **当前 32-bit `hcodec_minidec_arm` 可以在目标板上稳定运行**
 2. **buffer 模式可稳定解码并到 EOS**
 3. **surface 模式在 `SetOutputSurface` 阶段失败**
 4. **失败码稳定复现为 `63570434`**
 5. **1080p60 / 10s buffer 路吞吐大约只有 20 fps，明显未达 real-time 60 fps**
-6. **async drain 不是当前主要性能瓶颈**
+6. **2688x1520 / 60fps / 10s buffer 路吞吐大约只有 10 fps，离 real-time 更远**
+7. **async drain 不是当前主要性能瓶颈**
 
-### 6.2 还没有被坐实的点
+### 7.2 还没有被坐实的点
 
 1. `63570434` / `0x3ca0202` 的精确错误码映射仍未在源码里定位到
 2. 还不能证明 surface 路“只要继续改代码就一定能通”
 3. 还不能证明当前 RK3588 / OpenHarmony 组合能交付 real-time surface/zero-copy 解码链路
 
-## 7. 本轮产物
+## 8. 本轮产物
 
 本轮 `1080p60 10s` 的完整日志已拉回本地：
 
@@ -239,6 +279,6 @@ SetOutputSurface failed: 63570434
 - `hidumper_3011_*`
 - `ps_*`
 
-## 8. 一句话总结
+## 9. 一句话总结
 
-> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3588 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps；surface 路则稳定卡在 `SetOutputSurface failed: 63570434`，说明当前问题已经从“能不能跑起来”收敛成了“surface 输出为何被媒体栈拒绝，以及 buffer 路为什么离 real-time 仍差很多”。
+> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3588 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps，`2688x1520 60fps` 样本更是只有约 10 fps；surface 路则稳定卡在 `SetOutputSurface failed: 63570434`，说明当前问题已经从“能不能跑起来”收敛成了“surface 输出为何被媒体栈拒绝，以及 buffer 路为什么离 real-time 仍差很多”。
