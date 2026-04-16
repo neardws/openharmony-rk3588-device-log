@@ -1,6 +1,8 @@
 # buffer decode -> YOLO inference 方案（2026-04-16）
 
-> 目标：在当前 RK3588 / OpenHarmony 板子上，基于已经验证可运行的 **buffer 模式硬解**，把解码输出稳定送进 YOLO 推理链路。当前先不依赖 surface 路。
+> 目标：在当前 RK3568 / OpenHarmony 板子上，基于已经验证可运行的 **buffer 模式硬解**，把解码输出稳定送进 YOLO 推理链路。当前先不依赖 surface 路。
+
+> 说明：本文属于最近 2,3 天在**新 RK3568 板子**上的工程决策记录，不对应仓库里更早的 RK3588 记录。
 
 ## 1. 工程决策
 
@@ -293,4 +295,4 @@ hcodec_minidec_arm(buffer)
 
 ## 9. 一句话总结
 
-> 当前 RK3588 / OpenHarmony 项目的工程决策应明确切到 **buffer decode -> YOLO inference**：把 `hcodec_minidec_arm` 作为可控的 buffer 解码前端，用 CPU ncnn 先把推理链路做通，暂时不把 surface/zero-copy 当成当前阻塞项。
+> 当前 RK3568 / OpenHarmony 项目的工程决策应明确切到 **buffer decode -> YOLO inference**：把 `hcodec_minidec_arm` 作为可控的 buffer 解码前端，用 CPU ncnn 先把推理链路做通，暂时不把 surface/zero-copy 当成当前阻塞项。

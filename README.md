@@ -1,11 +1,12 @@
 # OpenHarmony RK3588 Device Log
 
-Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmony device.
+Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmony device, plus a recent media/codec validation track that moved onto a new RK3568 board.
 
 ## Current Summary
 
 - Exact board model confirmed by user: `DC-A588-V04`
-- Device family: industrial/custom RK3588 board
+- Historical baseline device family in this repo: industrial/custom RK3588 board
+- Recent media/codec validation board (2026-04-14 to 2026-04-16): `rockchip,rk3568-toybrick-dev-linux-x0`
 - Current OS observed: ZilOS (reported as based on OpenHarmony 4.1.3)
 - Known working path: device gets DHCP lease from router
 - Known DHCP leases observed on different Ethernet connections: `192.168.31.176`, `192.168.31.196`
@@ -13,6 +14,21 @@ Private notes and logs for diagnosing and documenting a custom RK3588/OpenHarmon
   - 4-pin `DEBUG` header (TTL serial console)
   - `BOOT` button (possible Rockchip loader/maskrom/boot mode entry)
   - TF card slot (possible storage expansion / upgrade path)
+
+## Repo Split Note (2026-04-16)
+
+The repo is now tracking two different boards:
+
+- Older content in this repo, especially earlier hardware / NPU / build / Ubuntu notes, is still about the original **RK3588** board.
+- Only the last 2 to 3 days of newly added OpenHarmony media / codec / benchmark content is on the new **RK3568** board.
+
+Recent live checks on the new board show:
+
+- `/proc/device-tree/compatible`: `rockchip,rk3568-toybrick-dev-linux-x0`
+- `/sys/devices/system/cpu/online`: `0-3`
+- `/proc/cpuinfo`: only four `CPU part : 0xd05` cores are exposed
+
+That combination matches an RK3568-class board. It should be used to label the recent media/codec validation docs, but it should **not** be used to retroactively relabel the older RK3588 material in this repo.
 
 
 ## Confirmed from official PDF

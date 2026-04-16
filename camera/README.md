@@ -153,7 +153,7 @@ img.save('/tmp/frame.png')
 - `camera/surface-listener-dispatch-deep-dive-2026-04-16.md` — 官方 listener、`hcodec_minidec` listener 与 pure surface probe 的更底层对照，聚焦 `libsurface` callback dispatch 证据
 - `camera/hcodec-minidec-surface-buffer-suite.md` — `hcodec_minidec` 的设备侧 surface/buffer 测试脚本、运行方式和日志采集命令
 - `deploy/buffer-decode-to-yolo-inference-plan-2026-04-16.md` — 当前阶段采用 buffer 解码输出接 YOLO 推理的工程决策与分阶段执行方案
-- `camera/hcodec-minidec-validation-2026-04-16.md` — `hcodec_minidec` 在 RK3588 / OpenHarmony 板上的 2026-04-16 实测结果（surface 失败码、buffer fps、sync/async 对比）
+- `camera/hcodec-minidec-validation-2026-04-16.md` — `hcodec_minidec` 在 RK3568 / OpenHarmony 板上的 2026-04-16 实测结果（surface 失败码、buffer fps、sync/async 对比）
 - `camera/offline-test-sample-spec.md` — 没有板子/摄像头时可先准备的离线硬解测试样本规范
 - `camera/codec-capability-analysis-rk3568.md` — `codec_caps.xml` / `av_codec_service.json` / vendor codec 能力的分层梳理
 - `camera/device-hw-codec-capability-check-2026-04-15.md` — 新设备上通过 HDC 实机确认硬解相关系统能力的检查记录

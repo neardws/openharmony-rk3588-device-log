@@ -1,6 +1,8 @@
 # hcodec_minidec 实测记录（2026-04-16）
 
-> 目标：在 RK3588 / OpenHarmony 目标板上，用当前 `hcodec_minidec` 的 **32-bit ARM 版本** 做一轮真正的 surface / buffer 对照验证，避免只停留在源码推断。
+> 目标：在 RK3568 / OpenHarmony 目标板上，用当前 `hcodec_minidec` 的 **32-bit ARM 版本** 做一轮真正的 surface / buffer 对照验证，避免只停留在源码推断。
+
+> 说明：本文属于最近 2,3 天在**新 RK3568 板子**上的实测记录，不对应仓库里更早的 RK3588 记录。
 
 ## 1. 本轮前提
 
@@ -377,7 +379,7 @@ HCODEC_RUN_ID=ipc_2688x1520_60fps_10s_b1 \
 
 1. surface consumer-listener 崩溃究竟是 `hcodec_minidec` 自己的 surface 消费逻辑问题，还是板端 `libsurface` / BSP 行为问题，还需要继续缩小
 2. 还不能证明 surface 路“只要继续改代码就一定能通”
-3. 还不能证明当前 RK3588 / OpenHarmony 组合能交付 real-time surface/zero-copy 解码链路
+3. 还不能证明当前 RK3568 / OpenHarmony 组合能交付 real-time surface/zero-copy 解码链路
 
 ## 8. 本轮产物
 
@@ -401,5 +403,4 @@ HCODEC_RUN_ID=ipc_2688x1520_60fps_10s_b1 \
 
 ## 9. 一句话总结
 
-> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3588 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps，`2688x1520 60fps` 样本更是只有约 10 fps；surface 路早期的 `SetOutputSurface failed: 63570434` 已可解释为 `AVCS_ERR_INVALID_STATE` 和调用时序错误，而修正时序后，surface 又进一步推进到了真正运行阶段，并暴露出新的 `libsurface.z.so -> BufferQueue::CallConsumerListener()` 崩溃问题。
-
+> 到 2026-04-16 这轮真机验证为止，`hcodec_minidec` 的 buffer 路已经能在 RK3568 / OpenHarmony 目标板上稳定跑完，但 1080p60 真实样本吞吐只有约 20 fps，`2688x1520 60fps` 样本更是只有约 10 fps；surface 路早期的 `SetOutputSurface failed: 63570434` 已可解释为 `AVCS_ERR_INVALID_STATE` 和调用时序错误，而修正时序后，surface 又进一步推进到了真正运行阶段，并暴露出新的 `libsurface.z.so -> BufferQueue::CallConsumerListener()` 崩溃问题。
