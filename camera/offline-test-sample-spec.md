@@ -208,6 +208,75 @@ test-<codec>-<resolution>-<fps>-<duration>.<ext>
 - 来源
 - 推荐用途
 
-## 11. 一句话总结
+## 11. 面向本次 RK3588 / OpenHarmony 验证的执行清单
+
+### 11.1 第一批要先落地的 H.264 样本
+
+建议先生成或收集下面这 4 个：
+
+- `test-h264-2688x1520-main-30fps-10s.h264`
+- `test-h264-2688x1520-main-60fps-10s.h264`
+- `test-h264-2688x1520-high-30fps-10s.h264`
+- `test-h264-1920x1080-main-30fps-10s.h264`
+
+用途：
+
+- `2688x1520 main 30fps`：最贴近当前 IPC 主码流的第一优先样本
+- `2688x1520 main 60fps`：初步吞吐压力样本
+- `2688x1520 high 30fps`：补齐更常见 IPC 主码流 profile
+- `1080p main 30fps`：更稳的降阶对照样本
+
+### 11.2 第二批压力样本
+
+在第一批确认功能没问题后，再补：
+
+- `test-h264-2688x1520-main-30fps-30s.h264`
+- `test-h264-2688x1520-main-60fps-30s.h264`
+- `test-h264-2688x1520-high-30fps-30s.h264`
+
+### 11.3 第三批长稳样本
+
+建议保留长样本，但不要在第一轮就全部生成：
+
+- `test-h264-2688x1520-main-30fps-10min.h264`
+- `test-h264-2688x1520-main-30fps-30min.h264`
+- `test-h264-2688x1520-main-60fps-10min.h264`
+
+说明：
+
+- 长稳样本主要用于稳定性、资源泄漏和持续吞吐验证
+- 板端跑长稳时不建议 dump 全量 YUV 输出，只统计帧数、耗时、fps、CPU、内存和错误
+
+### 11.4 推荐目录结构
+
+```text
+camera/
+  test-samples/
+    generated/
+    captured/
+    meta/
+    README.md
+```
+
+其中：
+
+- `generated/`：本地合成样本
+- `captured/`：未来从 RTSP / IPC 实流转储的真实样本
+- `meta/`：每个样本的 `ffprobe` 输出、md5、生成命令、备注
+
+### 11.5 命名补充建议
+
+建议把 profile 也放进文件名，避免后面混淆：
+
+```text
+test-<codec>-<resolution>-<profile>-<fps>-<duration>.<ext>
+```
+
+例如：
+
+- `test-h264-2688x1520-main-30fps-10s.h264`
+- `test-h264-2688x1520-high-30fps-10s.h264`
+
+## 12. 一句话总结
 
 > 离线样本的目标不是替代摄像头，而是让“硬解器本身验证”脱离真实硬件依赖，先跑起来。

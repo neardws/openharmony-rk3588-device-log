@@ -147,6 +147,7 @@ img.save('/tmp/frame.png')
 - `camera/soft-decode-to-hw-decode-migration.md` — 从 RTSP 软解迁移到硬解的路线图
 - `camera/hw-decode-validation-checklist.md` — 上板验证 IPC 摄像头 RTSP 硬解的检查清单
 - `camera/hcodec-demo-notes.md` — `hcodec_demo` 的定位、输入要求和最小命令模板
+- `camera/hcodec-minidec-surface-buffer-suite.md` — `hcodec_minidec` 的设备侧 surface/buffer 测试脚本、运行方式和日志采集命令
 - `camera/offline-test-sample-spec.md` — 没有板子/摄像头时可先准备的离线硬解测试样本规范
 - `camera/codec-capability-analysis-rk3568.md` — `codec_caps.xml` / `av_codec_service.json` / vendor codec 能力的分层梳理
 - `camera/device-hw-codec-capability-check-2026-04-15.md` — 新设备上通过 HDC 实机确认硬解相关系统能力的检查记录

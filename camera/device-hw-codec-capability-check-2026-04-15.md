@@ -185,6 +185,232 @@ Ubuntu -> SSH 到 Windows 中转机 -> Windows 上的 hdc.exe -> 目标设备
 4. 再做软解和硬解对照测试
 5. 最后再接 RTSP 真流场景
 
-## 11. 一句话总结
+## 11. `hcodec_minidec` 最小解码 sample 的补充验证
 
-> 这台设备当前已经可以确认具备视频硬解相关的系统服务、codec 库、公开 H.264 解码能力以及 Rockchip vendor 硬编解码声明，下一步应进入实际样本解码验证，而不是继续停留在“能力是否存在”的讨论阶段。
+在完成前面的“系统能力存在性检查”后，继续做了一个更小、更可控的真实解码验证路径，目标不是播放器链路，而是只验证：
+
+- `video/avc` decoder 能否被成功创建
+- 能否完成 `Configure -> Start`
+- 能否吃到 Annex-B H.264 输入
+- 能否真正收到 output callback
+- 能否正常走到 EOS
+
+### 11.1 sample 设计
+
+新增最小 sample：
+
+- 源码：`/home/neardws/openharmony-build/ohos-src/foundation/multimedia/av_codec/test/unittest/hcodec_test/demo/hcodec_minidec.cpp`
+
+设计约束：
+
+- 不依赖 `surface`
+- 不碰现成 helper
+- 直接走 `VideoDecoderFactory::CreateByMime("video/avc")`
+- 直接解析 Annex-B H.264 裸流，而不是沿用现成样例里的“4 字节长度前缀 + NAL”喂数格式
+- 通过 callback 接 `OnInputBufferAvailable` / `OnOutputBufferAvailable`
+- 支持可选输出 YUV 文件
+
+命令行格式：
+
+```text
+hcodec_minidec <input.h264> <width> <height> [output.yuv]
+```
+
+### 11.2 构建接入
+
+已在：
+
+- `foundation/multimedia/av_codec/test/unittest/hcodec_test/demo/BUILD.gn`
+
+新增：
+
+- `ohos_executable("hcodec_minidec")`
+
+当前构建配置要点：
+
+- `sources = [ "hcodec_minidec.cpp" ]`
+- `deps = [ "$av_codec_root_dir/interfaces/inner_api/native:av_codec_client" ]`
+- `external_deps` 至少包含：
+  - `ipc:ipc_single`
+  - `media_foundation:media_foundation`
+  - `media_foundation:native_media_core`
+
+同时，为了让该测试 target 通过当前产品构建的 sanitizer 检查，在：
+
+- `vendor/hihope/rk3568/security_config/sanitizer_check_list.gni`
+
+的 `bypass_av_codec` 中追加了：
+
+- `"hcodec_minidec"`
+
+### 11.3 编译过程中实际遇到的问题
+
+这次不是一次编过，中间真实踩到了几类问题：
+
+1. **宿主机构建环境问题**
+   - 最早先遇到 Python 运行时异常，典型报错包括：
+     - `ModuleNotFoundError: No module named 'encodings'`
+     - `ModuleNotFoundError: No module named 're'`
+   - 后续改用 `prebuilts/python_llvm/linux-x86/3.11.4` 作为 `PYTHONHOME/PYTHONPATH`，把这类前缀问题绕开。
+
+2. **`av_codec` target 的 CFI 校验**
+   - GN 生成阶段先被 sanitizer 规则拦住。
+   - 处理方式不是改 sample 逻辑，而是把 `hcodec_minidec` 加入当前产品的 `bypass_av_codec` 白名单。
+
+3. **跨组件头目录引用违规**
+   - 曾直接把 `//foundation/multimedia/media_foundation/interface/inner_api/` 塞进 `include_dirs`。
+   - GN 明确报错：
+     - `Do not directly use header files of other components`
+   - 后续去掉这条直接 include 目录，改为通过规范依赖解决。
+
+4. **链接缺失**
+   - 在真正到 link 阶段时，出现：
+     - `undefined symbol: OHOS::MediaAVCodec::VideoDecoderFactory::CreateByMime(...)`
+   - 这是因为 sample 只 include 了头，但没有把 `av_codec_client` 真正链接进来。
+   - 补上：
+     - `deps = [ "$av_codec_root_dir/interfaces/inner_api/native:av_codec_client" ]`
+   - 之后重新编译成功。
+
+### 11.4 编译产物
+
+最终 `hcodec_minidec` 已成功编过，产物为：
+
+- stripped：`/home/neardws/openharmony-build/ohos-src/out/rk3568/multimedia/av_codec/hcodec_minidec`
+- unstripped：`/home/neardws/openharmony-build/ohos-src/out/rk3568/exe.unstripped/multimedia/av_codec/hcodec_minidec`
+
+本地检查结果：
+
+- `ELF 32-bit LSB pie executable, ARM`
+- 动态依赖最少包括：
+  - `libav_codec_client.z.so`
+  - `libmedia_foundation.z.so`
+  - `libsec_shared.z.so`
+  - `libc.so`
+  - `libc++.so`
+
+这与此前对设备的判断一致：
+
+- `uname -m = aarch64`
+- `getconf LONG_BIT = 32`
+
+即当前设备是 **aarch64 内核 + 32-bit 用户态**，所以 `rk3568` 下生成的 32-bit ARM 可执行文件是正确方向。
+
+## 12. 下发与真机验证
+
+### 12.1 下发策略
+
+仍沿用：
+
+```text
+Ubuntu -> SSH 到 Windows 中转机 -> Windows 上 hdc.exe -> 目标设备
+```
+
+继续坚持“不污染系统分区”的原则，把 sample 和补充库全部下发到：
+
+- `/data/local/tmp`
+- `/data/local/tmp/hcodec_lib`
+
+本次实际下发的核心文件包括：
+
+- `/data/local/tmp/hcodec_minidec`
+- `/data/local/tmp/hcodec_lib/libav_codec_client.z.so`
+- `/data/local/tmp/hcodec_lib/libmedia_foundation.z.so`
+- `/data/local/tmp/hcodec_lib/libcodec_proxy_4.0.z.so`
+
+设备上此前已经存在或已补齐的本地辅助库包括：
+
+- `/data/local/tmp/hcodec_lib/libhilog.so`
+- `/data/local/tmp/hcodec_lib/libsec_shared.z.so`
+- `/data/local/tmp/hcodec_lib/libsurface.z.so`
+- `/data/local/tmp/hcodec_lib/libutils.z.so`
+
+同时在设备系统里继续确认到一批可直接复用的库，不必重复下发，例如：
+
+- `/system/lib/platformsdk/libav_codec_client.z.so`
+- `/system/lib/platformsdk/libmedia_foundation.z.so`
+- `/system/lib/chipset-pub-sdk/libipc_single.z.so`
+- `/system/lib/chipset-pub-sdk/libhilog.so`
+- `/system/lib/chipset-pub-sdk/libsec_shared.z.so`
+- `/system/lib/chipset-pub-sdk/libsurface.z.so`
+- `/system/lib/chipset-pub-sdk/libutils.z.so`
+- `/system/lib/chipset-pub-sdk/libsync_fence.z.so`
+- `/system/lib/chipset-pub-sdk/libsamgr_proxy.z.so`
+- `/system/lib/chipset-pub-sdk/libbegetutil.z.so`
+- `/system/lib/chipset-pub-sdk/libhitrace_meter.so`
+- `/system/lib/libohosffmpeg.z.so`
+- `/system/lib/libqos.z.so`
+- `/system/lib/libav_codec_media_engine_modules.z.so`
+- `/system/lib/libav_codec_service_dfx.z.so`
+- `/system/lib/libav_codec_service_utils.z.so`
+- `/system/lib/platformsdk/libressched_client.z.so`
+- `/system/lib/chipset-pub-sdk/libclang_rt.ubsan_minimal.so`
+
+### 12.2 真机运行命令
+
+输入样本继续使用：
+
+- `/data/local/tmp/out_320_240_10s.h264`
+
+实际运行时使用的库路径为：
+
+```sh
+export LD_LIBRARY_PATH=/system/lib:/system/lib/platformsdk:/system/lib/chipset-pub-sdk:/data/local/tmp/hcodec_lib
+```
+
+执行命令：
+
+```sh
+/data/local/tmp/hcodec_minidec \
+  /data/local/tmp/out_320_240_10s.h264 \
+  320 240 \
+  /data/local/tmp/hcodec_minidec_320x240.yuv
+```
+
+### 12.3 真机运行结果
+
+本次运行不是“能启动一下”就结束，而是完整跑到了 output 和 EOS。
+
+运行日志中可持续看到：
+
+- 多次 `[input] idx=... size=... ret=0`
+- 多次 `[output] idx=... size=115200 flag=0x0 total_out=...`
+- 最终出现 EOS：
+  - `[output] idx=19 size=0 flag=0x1`
+
+最终 summary 为：
+
+```text
+[summary] queued=611 output=602 output_bytes=69350400 success=true
+```
+
+这说明最小闭环已经真实成立：
+
+1. `CreateByMime("video/avc")` 成功
+2. decoder `Configure/Start` 成功
+3. Annex-B H.264 裸流成功喂入
+4. decoder 持续产出 output callback
+5. 正常收到 EOS 并完成收尾
+
+## 13. 本轮验证后的结论升级
+
+到这一步，结论已经比“系统能力存在”更强一层。
+
+之前只能确认：
+
+- 系统里有 AVCodec 服务
+- 系统里有 codec 库
+- 系统公开能力里有 `video/avc`
+- vendor HDF 里有 Rockchip 硬解声明
+
+现在已经能进一步确认：
+
+> 在这台设备上，基于 OpenHarmony AVCodec/HCodec 的 `video/avc` 解码最小链路已经被真实跑通，不是只停留在 profile / xml / capability 声明层。
+
+换句话说：
+
+- 这台设备的 H.264 解码能力不是“纸面支持”
+- 而是至少已经在一个最小、可控、无 surface 的 inner API sample 上完成了真机输入、出帧和 EOS 验证
+
+## 14. 一句话总结
+
+> 这台设备当前已经可以确认具备视频硬解相关的系统服务、codec 库、公开 H.264 解码能力以及 Rockchip vendor 硬编解码声明，并且通过 `hcodec_minidec` 完成了从编译、下发到真机样本解码成功的最小闭环验证，`video/avc` 解码链路已被实际跑通。
