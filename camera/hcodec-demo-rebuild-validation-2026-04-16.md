@@ -133,7 +133,84 @@ I: [WaitForOutput] output eos, quit loop
 
 > 重编后的官方 sample 在 `apiType=1` 的 buffer 路上，已经能在当前板子上正常工作。
 
-## 4.3 `apiType=1` + surface mode
+## 4.3 `apiType=1` + buffer mode（1080p60 / 10s）
+
+命令：
+
+```bash
+/data/local/tmp/hcodec_demo_arm \
+  --in /data/local/tmp/test-real-lauterbrunnen-1080p60-10s-copy.h264 \
+  --width 1920 \
+  --height 1080 \
+  --protocol 0 \
+  --isEncoder 0 \
+  --isBufferMode 1 \
+  --apiType 1 \
+  --frameRate 60 \
+  --timeout 120000
+```
+
+结果：**成功跑完到 EOS**。
+
+日志尾部显示：
+
+```text
+... in fps 125.46, out fps 123.40
+I: [AfterGotOutput] decoder output: flags=0x1 (eos)
+I: [WaitForOutput] output eos, quit loop
+```
+
+这说明：
+
+> 重编后的官方 sample 在 `apiType=1` buffer 路上，面对 `1080p60 / 10s` 样本时，吞吐已经明显高于 real-time 60 fps。
+
+## 4.4 `apiType=1` + buffer mode（2688x1520 / 60fps / 10s）
+
+命令：
+
+```bash
+/data/local/tmp/hcodec_demo_arm \
+  --in /data/local/tmp/test-h264-2688x1520-main-60fps-10s.h264 \
+  --width 2688 \
+  --height 1520 \
+  --protocol 0 \
+  --isEncoder 0 \
+  --isBufferMode 1 \
+  --apiType 1 \
+  --frameRate 60 \
+  --timeout 180000
+```
+
+结果：**成功跑完到 EOS**。
+
+日志尾部显示：
+
+```text
+... in fps 83.31, out fps 82.10
+I: [AfterGotOutput] decoder output: flags=0x1 (eos)
+I: [WaitForOutput] output eos, quit loop
+```
+
+这说明：
+
+> 在更接近 IPC 主码流的 `2688x1520@60` 样本上，官方 sample 的 `apiType=1` buffer 路仍然能达到约 `82 fps`，同样高于 real-time 60 fps。
+
+## 4.5 与 `hcodec_minidec` 的直接对照
+
+对照同一天已经测过的 `hcodec_minidec_arm`：
+
+- `1080p60 / 10s`
+  - `hcodec_minidec_arm`: 约 `20 fps`
+  - 官方 `hcodec_demo_arm(apiType=1, buffer)`: 约 `123 fps`
+- `2688x1520@60 / 10s`
+  - `hcodec_minidec_arm`: 约 `10 fps`
+  - 官方 `hcodec_demo_arm(apiType=1, buffer)`: 约 `82 fps`
+
+这个差距非常大，已经足够说明：
+
+> 当前从“码流 -> buffer 输出”这段，`hcodec_minidec_arm` 自己的 sample/pipeline 实现就是主要瓶颈之一，至少远没有逼近当前板子的 buffer-mode 硬解输出上限。
+
+## 4.6 `apiType=1` + surface mode
 
 命令：
 
