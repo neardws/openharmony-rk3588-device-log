@@ -242,13 +242,38 @@ SetCallback -> Configure -> SetOutputSurface -> Prepare -> Start
 
 > `63570434` 的主要含义已经可以收敛为“调用时机不对导致的 invalid state”，而不是单纯的“板子完全不支持 surface 输出”。
 
-### 5.6 修调用顺序后的 surface smoke
+### 5.7 沿着 surface consumer listener crash 继续剥
 
-输入：
+在拿到 fault log 之后，又继续做了 3 组排除实验。
 
-- `/data/local/tmp/out_320_240_10s.h264`
+#### 实验 A：把 surface listener 改成 no-op
 
-结果日志核心片段：
+把 `OnBufferAvailable()` 临时改成只计数/打印，不做：
+
+- `AcquireBuffer`
+- `ReleaseBuffer`
+- YUV dump
+- 任何实际 surface 消费
+
+结果：**仍然在 first output callback 后立刻 `Signal 11`**，而且连我们自己的 `[surface]` 日志都进不来。
+
+这说明：
+
+> 当前 crash 不是由 `AcquireBuffer/ReleaseBuffer` 逻辑直接触发的，更像是在 `libsurface` 调用 listener 回调的派发阶段就已经出问题。
+
+#### 实验 B：用 `out/rk3568` 的 GN 编译参数重编 32-bit binary
+
+为了排除 `manual-arm-build` 手工脚本的编译 ABI 偏差，又做了一版：
+
+- 使用 `out/rk3568/.../hcodec_minidec.ninja` 里的真实 `cflags/cflags_cc`
+- 重新编译当前源码
+- 继续链接到当前能跑的 device libs
+
+产物：
+
+- `/data/local/tmp/hcodec_minidec_gnflags_arm`
+
+结果：**surface case 仍然是同样的 `Signal 11`**，日志推进程度也一致：
 
 ```text
 [phase] configure
@@ -256,32 +281,44 @@ SetCallback -> Configure -> SetOutputSurface -> Prepare -> Start
 [phase] set output surface
 [phase] prepare
 [phase] start
-[callback] first input idx=1 size=4177920
-[phase] start ok, waiting for first input callback
-[callback] first output idx=5 size=0 flag=0x0
+[callback] first input ...
+[callback] first output ...
 Signal 11
 ```
 
-对应 fault log：
+这说明：
 
-- `/data/log/faultlog/faultlogger/cppcrash-hcodec_minidec_arm-0-20260416124430`
-- 已拉回本地：
-  - `/home/neardws/openharmony-build/logs/hcodec/cppcrash-hcodec_minidec_arm-0-20260416124430`
+> 当前 crash 不是简单由 `manual-arm-build` 的编译旗标差异导致的。
 
-fault log 关键栈：
+#### 实验 C：改用 `IBufferConsumerListenerClazz + RefBase` 的 raw listener 注册路径
 
-```text
-Reason:Signal:SIGSEGV(SEGV_ACCERR)
-Fault thread info:
-Tid:8558, Name:OS_IPC_0_8558
-#01 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueue::CallConsumerListener()+104)
-#02 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueue::FlushBuffer(...)+760)
-#03 /system/lib/chipset-pub-sdk/libsurface.z.so(OHOS::BufferQueueProducer::FlushBuffer(...)+68)
-```
+为了排除 `sptr<IBufferConsumerListener>` 这一条注册通道本身的问题，又照着 surface systemtest 的风格试了：
 
-这说明当前 surface 路的新 blocker 已经变成：
+- `IBufferConsumerListenerClazz`
+- 继承 `RefBase`
+- `RegisterConsumerListener(listener.GetRefPtr())`
 
-> 不再是早期 `invalid state`，而是 surface 真正跑起来后，在 `libsurface.z.so -> BufferQueue::CallConsumerListener()` 这一层发生了 consumer-listener 相关崩溃。
+结果更差：**在 `create output surface` 阶段就 `Signal 11`**。
+
+这说明：
+
+> raw-listener 这条路不是解法，至少在当前板端环境下，它比 `sptr<IBufferConsumerListener>` 路更早出问题。
+
+### 5.8 当前缩小后的判断
+
+到这一步，可以比较有把握地排掉两类误判：
+
+1. **不是 `SetOutputSurface` 调用时序问题了**
+   - 这一层已经被 `Configure -> SetOutputSurface -> Prepare -> Start` 修掉
+2. **不是我们 listener 里 `AcquireBuffer/ReleaseBuffer` 逻辑本身直接导致的**
+   - 因为改成 no-op 后还是一样崩
+3. **也不像只是手工 32-bit 编译脚本的 ABI 旗标问题**
+   - GN 参数版 binary 复现同样 crash
+
+所以目前更像：
+
+> 只要走到 surface 输出，并让 `libsurface` 真正回调 consumer listener，这台板子的当前 `libsurface` / 图形栈 / 媒体栈组合就会在 listener dispatch 附近崩掉。
+
 
 ## 6. 更贴近 IPC 主码流的验证：2688x1520 / 60fps / 10s
 
