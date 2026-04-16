@@ -148,6 +148,7 @@ img.save('/tmp/frame.png')
 - `camera/hw-decode-validation-checklist.md` — 上板验证 IPC 摄像头 RTSP 硬解的检查清单
 - `camera/hcodec-demo-notes.md` — `hcodec_demo` 的定位、输入要求和最小命令模板
 - `camera/hcodec-demo-rebuild-validation-2026-04-16.md` — 官方 `hcodec_demo` 按当前板子可运行的 32-bit 路线手工重编后的板端验证结果
+- `camera/official-hw-vs-sw-decode-benchmark-2026-04-16.md` — 官方硬解 buffer 链路 vs FFmpeg 软解链路的性能与资源占用对比
 - `camera/hcodec-surface-crash-side-by-side-2026-04-16.md` — 官方 `hcodec_demo_arm(apiType=1)` surface crash 与 `hcodec_minidec` surface crash 的并排对照
 - `camera/surface-listener-dispatch-deep-dive-2026-04-16.md` — 官方 listener、`hcodec_minidec` listener 与 pure surface probe 的更底层对照，聚焦 `libsurface` callback dispatch 证据
 - `camera/hcodec-minidec-surface-buffer-suite.md` — `hcodec_minidec` 的设备侧 surface/buffer 测试脚本、运行方式和日志采集命令
